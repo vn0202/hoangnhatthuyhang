@@ -46,3 +46,36 @@ Sau khi chỉnh sửa `info.json` hoặc thêm bớt ảnh, chỉ cần chạy l
 python3 apply_wedding.py
 ```
 *(Nếu muốn khôi phục về giao diện gốc: `python3 apply_wedding.py --reset`)*
+
+---
+
+## 4. Deploy lên Vercel & Chuẩn hóa ảnh chia sẻ Zalo / Messenger
+
+### A. Nguyên lý hiển thị ảnh trên Zalo & Messenger:
+- Zalo & Messenger (Facebook) **bắt buộc** đường dẫn `og:image` phải là **link tuyệt đối (`https://...`)**, nếu để link tương đối (`/images/...` hay `images/...`) thì crawler của Zalo/Facebook sẽ **không tải được ảnh preview**.
+- Tỉ lệ ảnh chuẩn hiển thị đẹp nhất là **1200x630 (tỉ lệ 1.91:1)**. Khi chạy `python3 apply_wedding.py`, hệ thống tự động tạo sẵn 3 ảnh banner thiệp vàng sang trọng:
+  - `images/og_nhatrai.jpg`: Banner Lễ Thành Hôn Nhà Trai.
+  - `images/og_nhagai.jpg`: Banner Lễ Vu Quy Nhà Gái.
+  - `images/og_share.jpg`: Banner thiệp cưới chung.
+
+### B. Cấu hình tên miền trong `custom_wedding/info.json`:
+Chỉnh sửa trường `"ten_mien"` thành link trang web thật của bạn sau khi deploy (hoặc tên miền riêng):
+```json
+"ten_mien": "https://hoangnhatthuyhang.vercel.app"
+```
+Sau đó chạy lại `python3 apply_wedding.py` để toàn bộ link `og:image` và `og:url` trong các file HTML tự động cập nhật đúng chuẩn tuyệt đối!
+
+### C. Deploy nhanh lên Vercel:
+Mở Terminal và chạy:
+```bash
+npx vercel
+```
+- Khi Vercel hỏi: bấm Enter để chọn các mặc định (`./`).
+- Sau khi có link Vercel (ví dụ: `https://ten-du-an.vercel.app`), điền link này vào `"ten_mien"` trong `custom_wedding/info.json`, chạy `python3 apply_wedding.py` rồi chạy lại:
+```bash
+npx vercel --prod
+```
+
+### D. Xóa cache và kiểm tra link xem trước:
+- **Kiểm tra trên Zalo:** Vào [Zalo Sharing Debug](https://developers.zalo.me/tools/debug-sharing), dán link và bấm **"Thu thập lại thông tin"**.
+- **Kiểm tra trên Facebook/Messenger:** Vào [Facebook Sharing Debugger](https://developers.facebook.com/tools/debug/), dán link và bấm **"Scrape Again"**.

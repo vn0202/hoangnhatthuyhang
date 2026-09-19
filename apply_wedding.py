@@ -74,6 +74,141 @@ def find_file_with_extensions(base_names, directory: str) -> Optional[str]:
     return None
 
 
+def generate_og_banners(config: dict, custom_dir: str, images_dir: str):
+    """
+    Tự động tạo hoặc chuẩn bị ảnh banner Open Graph (1200x630) cho Nhà Trai, Nhà Gái và Root.
+    Tỉ lệ 1.91:1 (1200x630) là chuẩn vàng hiển thị full ảnh cực đẹp trên Zalo, Messenger, Facebook.
+    """
+    try:
+        from PIL import Image, ImageFilter, ImageDraw, ImageFont
+    except ImportError:
+        console.print("[yellow]! Pillow chưa được cài, bỏ qua tự động tạo ảnh OG banner.[/yellow]")
+        return
+
+    # 1. Kiểm tra ảnh do người dùng chủ động bỏ vào custom_wedding/
+    custom_trai = find_file_with_extensions(["og_nhatrai", "og_trai"], custom_dir)
+    custom_gai = find_file_with_extensions(["og_nhagai", "og_gai"], custom_dir)
+    custom_root = find_file_with_extensions(["og_share", "og", "share"], custom_dir)
+
+    if custom_trai:
+        shutil.copyfile(custom_trai, os.path.join(images_dir, "og_nhatrai.jpg"))
+    if custom_gai:
+        shutil.copyfile(custom_gai, os.path.join(images_dir, "og_nhagai.jpg"))
+    if custom_root:
+        shutil.copyfile(custom_root, os.path.join(images_dir, "og_share.jpg"))
+
+    # 2. Nếu thiếu, tự động tạo từ ảnh hero/album với layout thiệp vàng sang trọng
+    hero_photo = (
+        find_file_with_extensions(["hero", "banner"], custom_dir)
+        or os.path.join(images_dir, "custom_hero.jpeg")
+    )
+    if not os.path.exists(hero_photo):
+        return
+
+    font_candidates = [
+        os.path.join(BASE_DIR, "fonts", "cormorantinfant-medium-20250320040935-nh0vi.ttf"),
+        os.path.join(SITE_DIR, "fonts", "cormorantinfant-medium-20250320040935-nh0vi.ttf"),
+        os.path.join(BASE_DIR, "fonts", "ebgaramond-medium-20250320040915-omeex.ttf"),
+    ]
+    font_path = next((f for f in font_candidates if os.path.exists(f)), None)
+
+    def create_single_banner(photo_path, le_title, names, time_str, venue, address, out_path):
+        W, H = 1200, 630
+        try:
+            bg = Image.open(photo_path).convert("RGB")
+        except Exception:
+            return
+
+        # Nền mờ nghệ thuật
+        bg_ratio = max(W / bg.width, H / bg.height)
+        new_w, new_h = int(bg.width * bg_ratio), int(bg.height * bg_ratio)
+        bg_resized = bg.resize((new_w, new_h), Image.Resampling.LANCZOS)
+        left = (new_w - W) // 2
+        top = (new_h - H) // 2
+        canvas = bg_resized.crop((left, top, left + W, top + H))
+        canvas = canvas.filter(ImageFilter.GaussianBlur(radius=25))
+
+        # Lớp phủ tối gradient tinh tế
+        overlay = Image.new("RGBA", (W, H), (0, 0, 0, 135))
+        canvas = Image.alpha_composite(canvas.convert("RGBA"), overlay)
+
+        # Khung ảnh sắc nét của cặp đôi bên phải
+        p_h = H - 60
+        p_w = int(bg.width * (p_h / bg.height))
+        p_sharp = bg.resize((p_w, p_h), Image.Resampling.LANCZOS)
+        p_x = W - p_w - 40
+        p_y = 30
+        canvas.paste(p_sharp, (p_x, p_y))
+
+        # Viền trắng bao quanh ảnh
+        draw = ImageDraw.Draw(canvas)
+        draw.rectangle([p_x - 3, p_y - 3, p_x + p_w + 3, p_y + p_h + 3], outline=(255, 255, 255, 220), width=3)
+
+        # Chữ vàng & trắng sang trọng bên trái
+        if font_path:
+            try:
+                f_title = ImageFont.truetype(font_path, 34)
+                f_names = ImageFont.truetype(font_path, 52)
+                f_date = ImageFont.truetype(font_path, 30)
+                f_venue = ImageFont.truetype(font_path, 25)
+                f_addr = ImageFont.truetype(font_path, 20)
+
+                draw.text((60, 130), le_title, font=f_title, fill=(255, 215, 120))
+                draw.text((60, 195), names, font=f_names, fill=(255, 255, 255))
+                draw.line([(60, 280), (460, 280)], fill=(255, 215, 120), width=2)
+                draw.text((60, 310), time_str, font=f_date, fill=(245, 245, 245))
+                draw.text((60, 365), venue, font=f_venue, fill=(220, 220, 220))
+                draw.text((60, 410), address, font=f_addr, fill=(180, 180, 180))
+            except Exception:
+                pass
+
+        canvas.convert("RGB").save(out_path, "JPEG", quality=95)
+
+    cr_short = config.get("chu_re", {}).get("ten_ngan", "HOÀNG NHẬT").title()
+    cd_short = config.get("co_dau", {}).get("ten_ngan", "THÚY HẰNG").title()
+    trai_ev = config.get("tiec_nha_trai", {})
+    gai_ev = config.get("tiec_nha_gai", {})
+
+    # Banner Nhà Trai
+    out_trai = os.path.join(images_dir, "og_nhatrai.jpg")
+    if not custom_trai or not os.path.exists(out_trai):
+        create_single_banner(
+            hero_photo,
+            trai_ev.get("tieu_de_le", "LỄ THÀNH HÔN"),
+            f"{cr_short} & {cd_short}",
+            f"{trai_ev.get('gio_ngan', '11:00')} • {trai_ev.get('ngay_duong_lich', '18.10.2026')} ({trai_ev.get('thu', 'Chủ Nhật').title()})",
+            trai_ev.get("ten_dia_diem", "Sảnh 5 - Tiệc cưới Mipec Tây Sơn"),
+            trai_ev.get("dia_chi", "229 Phố Tây Sơn, Kim Liên, Hà Nội"),
+            out_trai,
+        )
+
+    # Banner Nhà Gái
+    out_gai = os.path.join(images_dir, "og_nhagai.jpg")
+    if not custom_gai or not os.path.exists(out_gai):
+        create_single_banner(
+            hero_photo,
+            gai_ev.get("tieu_de_le", "LỄ VU QUY"),
+            f"{cr_short} & {cd_short}",
+            f"{gai_ev.get('gio_ngan', '16:30')} • {gai_ev.get('ngay_duong_lich', '18.10.2026')} ({gai_ev.get('thu', 'Chủ Nhật').title()})",
+            gai_ev.get("ten_dia_diem", "Tư gia Nhà Gái"),
+            gai_ev.get("dia_chi", "Thọ Vực, Xã Xuân Giang, Tỉnh Ninh Bình"),
+            out_gai,
+        )
+
+    # Banner Root
+    out_root = os.path.join(images_dir, "og_share.jpg")
+    if not custom_root or not os.path.exists(out_root):
+        create_single_banner(
+            hero_photo,
+            trai_ev.get("tieu_de_le", "LỄ THÀNH HÔN"),
+            f"{cr_short} & {cd_short}",
+            f"{trai_ev.get('ngay_duong_lich', '18.10.2026')} ({trai_ev.get('thu', 'Chủ Nhật').title()})",
+            trai_ev.get("ten_dia_diem", "Sảnh 5 - Tiệc cưới Mipec Tây Sơn"),
+            "Trân trọng kính mời quý khách tới chung vui!",
+            out_root,
+        )
+
+
 def reset_to_original():
     """Reset all generated files back to clean state."""
     if not os.path.exists(ORIGINAL_HTML):
@@ -231,6 +366,7 @@ def render_page(
     side: str,  # "trai" or "gai"
     slot_mapping: Dict[str, str],
     is_subfolder: bool = False,
+    is_root: bool = False,
 ) -> str:
     """Render a customized HTML page for either Nhà Trai or Nhà Gái."""
     html = base_html
@@ -247,14 +383,13 @@ def render_page(
     cd_title = cd_short.title()
 
     # Determine event details for this side
-    # Determine event details and bank person for this side
     if side == "gai":
         event = config.get("tiec_nha_gai") or config.get("thoi_gian_va_dia_diem", {})
         person = co_dau
         side_label = "Nhà Gái"
         le_title = event.get("tieu_de_le", "LỄ VU QUY")
-        doc_title = f"{le_title} - {cd_title} &amp; {cr_title}"
-        og_title = f"{le_title} - Cô dâu {cd_short} & Chú rể {cr_short}"
+        doc_title = f"{le_title} - {cr_title} &amp; {cd_title}"
+        og_title = f"{le_title} - Chú rể {cr_short} & Cô dâu {cd_short}"
         popup_role = "Cô dâu"
         popup_name = co_dau.get("chu_tai_khoan") or cd_full
         qr_file = (
@@ -297,7 +432,7 @@ def render_page(
     has_bank_info = bool(so_tai_khoan or ten_ngan_hang)
     hide_gift_button = (not show_gift_cfg) or (not has_bank_info)
 
-    # 1. Update Title & Open Graph Meta Tags for perfect Zalo/Facebook display
+    # 1. Update Title & Open Graph Meta Tags (Bắt buộc dùng Absolute URL để Zalo & Messenger hiển thị ảnh)
     venue_name = event.get("ten_dia_diem", "Trống Đồng Palace")
     venue_addr = event.get("dia_chi", "")
     date_str = event.get("ngay_duong_lich", "15.12.2025")
@@ -306,23 +441,83 @@ def render_page(
     lunar_str = event.get("ngay_am_lich", "25 tháng 10 năm Ất Tỵ")
     day_name = event.get("thu", "CHỦ NHẬT")
 
-    og_desc = (
-        f"Trân trọng kính mời quý khách tới dự bữa cơm thân mật chung vui cùng gia đình {side_label} "
-        f"chúng tôi vào lúc {time_short} ngày {date_str} tại {venue_name}"
+    # Domain / Tên miền trang web
+    domain = (config.get("ten_mien") or config.get("domain") or "https://hoangnhatthuyhang.vercel.app").strip().rstrip("/")
+
+    if is_root:
+        canonical_url = f"{domain}/"
+        og_url = f"{domain}/"
+        doc_title = f"{le_title} - {cr_title} &amp; {cd_title}"
+        og_title = f"{le_title} - {cr_short} & {cd_short}"
+        og_desc = (
+            f"Trân trọng kính mời quý khách tới dự bữa cơm thân mật chung vui cùng gia đình "
+            f"chúng tôi vào lúc {time_short} ngày {date_str} tại {venue_name}"
+        )
+        custom_og = (config.get("anh_share_chung") or "").strip()
+        if custom_og.startswith("http://") or custom_og.startswith("https://"):
+            og_image_url = custom_og
+        else:
+            og_image_url = f"{domain}/images/og_share.jpg"
+    elif side == "gai":
+        canonical_url = f"{domain}/nhagai"
+        og_url = f"{domain}/nhagai"
+        og_desc = (
+            f"Trân trọng kính mời quý khách tới dự bữa cơm thân mật chung vui cùng gia đình Nhà Gái "
+            f"chúng tôi vào lúc {time_short} ngày {date_str} tại {venue_name}"
+        )
+        custom_og = (config.get("anh_share_gai") or config.get("anh_share_nhagai") or "").strip()
+        if custom_og.startswith("http://") or custom_og.startswith("https://"):
+            og_image_url = custom_og
+        else:
+            og_image_url = f"{domain}/images/og_nhagai.jpg"
+    else:
+        canonical_url = f"{domain}/nhatrai"
+        og_url = f"{domain}/nhatrai"
+        og_desc = (
+            f"Trân trọng kính mời quý khách tới dự bữa cơm thân mật chung vui cùng gia đình Nhà Trai "
+            f"chúng tôi vào lúc {time_short} ngày {date_str} tại {venue_name}"
+        )
+        custom_og = (config.get("anh_share_trai") or config.get("anh_share_nhatrai") or "").strip()
+        if custom_og.startswith("http://") or custom_og.startswith("https://"):
+            og_image_url = custom_og
+        else:
+            og_image_url = f"{domain}/images/og_nhatrai.jpg"
+
+    # Xóa sạch các thẻ canonical, og:*, twitter:*, description cũ bất kể thứ tự thuộc tính
+    html = re.sub(r'<link[^>]*rel=["\']canonical["\'][^>]*>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<meta[^>]*property=["\']og:[^"\']+["\'][^>]*>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<meta[^>]*content=["\'][^"\']*["\'][^>]*property=["\']og:[^"\']+["\'][^>]*>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<meta[^>]*name=["\']twitter:[^"\']+["\'][^>]*>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<meta[^>]*content=["\'][^"\']*["\'][^>]*name=["\']twitter:[^"\']+["\'][^>]*>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<meta[^>]*name=["\']description["\'][^>]*>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<meta[^>]*content=["\'][^"\']*["\'][^>]*name=["\']description["\'][^>]*>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<meta[^>]*name=["\']msapplication-TileImage["\'][^>]*>', '', html, flags=re.IGNORECASE)
+    html = re.sub(r'<meta[^>]*content=["\'][^"\']*["\'][^>]*name=["\']msapplication-TileImage["\'][^>]*>', '', html, flags=re.IGNORECASE)
+
+    # Khởi tạo gói thẻ Open Graph + Twitter Card đạt chuẩn tối đa cho Zalo & Facebook / Messenger
+    og_meta_tags = (
+        f'<link rel="canonical" href="{canonical_url}"/>\n'
+        f'<meta name="description" content="{og_desc}"/>\n'
+        f'<meta property="og:type" content="website"/>\n'
+        f'<meta property="og:url" content="{og_url}"/>\n'
+        f'<meta property="og:title" content="{og_title}"/>\n'
+        f'<meta property="og:description" content="{og_desc}"/>\n'
+        f'<meta property="og:image" content="{og_image_url}"/>\n'
+        f'<meta property="og:image:secure_url" content="{og_image_url}"/>\n'
+        f'<meta property="og:image:type" content="image/jpeg"/>\n'
+        f'<meta property="og:image:width" content="1200"/>\n'
+        f'<meta property="og:image:height" content="630"/>\n'
+        f'<meta property="og:image:alt" content="{og_title}"/>\n'
+        f'<meta property="og:site_name" content="Thiệp Cưới Online - {cr_short} &amp; {cd_short}"/>\n'
+        f'<meta name="twitter:card" content="summary_large_image"/>\n'
+        f'<meta name="twitter:url" content="{og_url}"/>\n'
+        f'<meta name="twitter:title" content="{og_title}"/>\n'
+        f'<meta name="twitter:description" content="{og_desc}"/>\n'
+        f'<meta name="twitter:image" content="{og_image_url}"/>\n'
+        f'<meta name="msapplication-TileImage" content="{domain}/images/untitled-1-20250323102909-q2zbh.png"/>'
     )
 
-    html = re.sub(r"<title>[^<]+</title>", f"<title>{doc_title}</title>", html)
-    html = re.sub(r'content="[^"]*Thanh Sơn &amp; Mai Anh Wedding[^"]*"', f'content="{og_title}"', html)
-    html = re.sub(
-        r'<meta content="[^"]*" name="description"/>',
-        f'<meta content="{og_desc}" name="description"/>',
-        html
-    )
-    html = re.sub(
-        r'<meta content="[^"]*" property="og:description"/>',
-        f'<meta content="{og_desc}" property="og:description"/>',
-        html
-    )
+    html = re.sub(r"<title>[^<]+</title>", f"<title>{doc_title}</title>\n{og_meta_tags}", html, count=1, flags=re.IGNORECASE)
 
     # 2. Text Replacements
     text_replacements = [
@@ -362,12 +557,16 @@ def render_page(
         ("Aquaria Palace", venue_name),
     ]
 
-    # Timeline event times (Đón khách, Lễ, Khai tiệc)
-    gio_don_khach = event.get("gio_don_khach", "10:30" if side == "trai" else "16:00")
-    gio_khai_tiec = event.get("gio_khai_tiec", "11:30" if side == "trai" else "17:00")
+    # Timeline event times (Đón khách, Lễ, Khai tiệc) - Đồng bộ giữ nguyên như Nhà Trai
+    trai_ev = config.get("tiec_nha_trai", {})
+    tl_don_khach = trai_ev.get("gio_don_khach", "10:30")
+    tl_le_gio = trai_ev.get("gio_ngan", "11:00")
+    tl_le_title = trai_ev.get("tieu_de_le", "LỄ THÀNH HÔN")
+    tl_khai_tiec = trai_ev.get("gio_khai_tiec", "11:30")
+
     text_replacements.extend([
-        ("17:00", gio_don_khach),
-        ("17:45", gio_khai_tiec),
+        ("17:00", tl_don_khach),
+        ("17:45", tl_khai_tiec),
     ])
 
     # Specific month and year
@@ -384,21 +583,15 @@ def render_page(
         if target in html:
             html = html.replace(target, repl)
 
-    # Timeline elements precision replacement
-    html = re.sub(r'(id="HEADLINE213"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{gio_don_khach}\g<2>', html)
-    html = re.sub(r'(id="HEADLINE216"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{time_short}\g<2>', html)
-    html = re.sub(r'(id="HEADLINE218"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{le_title}\g<2>', html)
-    html = re.sub(r'(id="HEADLINE219"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{gio_khai_tiec}\g<2>', html)
+    # Timeline elements precision replacement - Giữ nguyên như Nhà Trai cho cả 2 bên
+    html = re.sub(r'(id="HEADLINE213"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{tl_don_khach}\g<2>', html)
+    html = re.sub(r'(id="HEADLINE216"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{tl_le_gio}\g<2>', html)
+    html = re.sub(r'(id="HEADLINE218"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{tl_le_title}\g<2>', html)
+    html = re.sub(r'(id="HEADLINE219"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{tl_khai_tiec}\g<2>', html)
 
     # 2.1 Ceremony and Address configuration
     dual_events_css = ""
     if side == "gai":
-        # Put bride first on Nhà Gái (Thúy Hằng & Hoàng Nhật)
-        html = re.sub(r'(id="HEADLINE4"[^>]*><h3[^>]*>)[^<]*(</h3>)', rf'\g<1>{cd_short}\g<2>', html)
-        html = re.sub(r'(id="HEADLINE3"[^>]*><h3[^>]*>)[^<]*(</h3>)', rf'\g<1>{cr_short}\g<2>', html)
-        html = re.sub(r'(id="HEADLINE50"[^>]*><p[^>]*>)[^<]*(</p>)', rf'\g<1>{cd_short}\g<2>', html)
-        html = re.sub(r'(id="HEADLINE49"[^>]*><p[^>]*>)[^<]*(</p>)', rf'\g<1>{cr_short}\g<2>', html)
-
         import urllib.parse
         tiec_gai = config.get("tiec_nha_gai", {})
         tiec_trai = config.get("tiec_nha_trai", {})
@@ -748,14 +941,6 @@ def render_page(
     for old_slot, new_slot in slot_mapping.items():
         html = html.replace(old_slot, new_slot)
 
-    # Update og:image tag
-    first_img = slot_mapping.get(HERO_SLOT, "images/itsk2851a-20251006144830-optts.jpg")
-    html = re.sub(
-        r'property="og:image"\s+content="[^"]+"',
-        f'property="og:image" content="{first_img}"',
-        html
-    )
-
     # 5. Dynamic Calendar Grid & Heart calculation for exact month/year/wedding day
     cal_year = int(new_year) if new_year else 2026
     cal_month = int(new_month) if new_month else 10
@@ -947,12 +1132,13 @@ def main():
         )
     )
 
-    # Prepare custom photos
+    # Prepare custom photos & OG share banners (1200x630)
     slot_mapping, num_replaced = prepare_custom_images()
+    generate_og_banners(config, CUSTOM_DIR, IMAGES_DIR)
 
     # 1. Render Nhà Trai page
-    trai_html_sub = render_page(base_html, config, "trai", slot_mapping, is_subfolder=True)
-    trai_html_root = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False)
+    trai_html_sub = render_page(base_html, config, "trai", slot_mapping, is_subfolder=True, is_root=False)
+    trai_html_root = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=False)
 
     os.makedirs(NHA_TRAI_DIR, exist_ok=True)
     with open(os.path.join(NHA_TRAI_DIR, "index.html"), "w", encoding="utf-8") as f:
@@ -961,8 +1147,8 @@ def main():
         f.write(trai_html_root)
 
     # 2. Render Nhà Gái page
-    gai_html_sub = render_page(base_html, config, "gai", slot_mapping, is_subfolder=True)
-    gai_html_root = render_page(base_html, config, "gai", slot_mapping, is_subfolder=False)
+    gai_html_sub = render_page(base_html, config, "gai", slot_mapping, is_subfolder=True, is_root=False)
+    gai_html_root = render_page(base_html, config, "gai", slot_mapping, is_subfolder=False, is_root=False)
 
     os.makedirs(NHA_GAI_DIR, exist_ok=True)
     with open(os.path.join(NHA_GAI_DIR, "index.html"), "w", encoding="utf-8") as f:
@@ -970,40 +1156,50 @@ def main():
     with open(NHA_GAI_HTML, "w", encoding="utf-8") as f:
         f.write(gai_html_root)
 
-    # 3. Render Root index.html (defaults to Nhà Trai with smart parameter router)
-    root_html = inject_smart_router(trai_html_root)
+    # 3. Render Root index.html (is_root=True với Open Graph chung & bộ định tuyến thông minh)
+    root_html_base = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=True)
+    root_html = inject_smart_router(root_html_base)
     with open(INDEX_HTML, "w", encoding="utf-8") as f:
         f.write(root_html)
 
     # Output Summary Table
     trai_info = config.get("tiec_nha_trai", {})
     gai_info = config.get("tiec_nha_gai", {})
+    domain = (config.get("ten_mien") or config.get("domain") or "https://hoangnhatthuyhang.vercel.app").strip().rstrip("/")
 
     console.print()
-    table = Table(title="[bold green]XUẤT BẢN THIỆP CƯỚI 2 BÊN THÀNH CÔNG[/bold green]", border_style="green")
-    table.add_column("Đối tượng", style="cyan", width=15)
-    table.add_column("Tiêu đề lễ & Ngày giờ", style="white")
-    table.add_column("Địa điểm tổ chức", style="dim")
-    table.add_column("Đường dẫn (Link Share Zalo/FB)", style="bold yellow")
+    table = Table(title="[bold green]XUẤT BẢN THIỆP CƯỚI & OPEN GRAPH THÀNH CÔNG[/bold green]", border_style="green")
+    table.add_column("Đối tượng", style="cyan", width=16)
+    table.add_column("Tiêu đề & Ngày giờ", style="white", width=22)
+    table.add_column("Link Chia Sẻ (Zalo / FB)", style="bold yellow")
+    table.add_column("Link Ảnh Preview (og:image)", style="dim cyan")
 
     table.add_row(
         "Nhà Trai (Chú rể)",
         f"{trai_info.get('tieu_de_le')}\n{trai_info.get('gio_ngan')} - {trai_info.get('ngay_duong_lich')}",
-        f"{trai_info.get('ten_dia_diem')}\n{trai_info.get('dia_chi')}",
-        "http://localhost:8000/nhatrai/\n(hoặc nhatrai.html)"
+        f"{domain}/nhatrai\n[dim](local: /nhatrai/)[/dim]",
+        f"{domain}/images/og_nhatrai.jpg"
     )
 
     table.add_row(
         "Nhà Gái (Cô dâu)",
         f"{gai_info.get('tieu_de_le')}\n{gai_info.get('gio_ngan')} - {gai_info.get('ngay_duong_lich')}",
-        f"{gai_info.get('ten_dia_diem')}\n{gai_info.get('dia_chi')}",
-        "http://localhost:8000/nhagai/\n(hoặc nhagai.html)"
+        f"{domain}/nhagai\n[dim](local: /nhagai/)[/dim]",
+        f"{domain}/images/og_nhagai.jpg"
+    )
+
+    table.add_row(
+        "Trang Chủ (Chung)",
+        "Tự điều hướng theo ?side=nhagai",
+        f"{domain}/\n[dim](local: /)[/dim]",
+        f"{domain}/images/og_share.jpg"
     )
 
     console.print(table)
 
-    console.print(f"\n[green]✓[/green] Đã cập nhật [bold]{num_replaced}[/bold] khung ảnh tự động.")
-    console.print(f"[green]✓[/green] Hỗ trợ cả link tham số: [bold underline]http://localhost:8000/?side=nhagai[/bold underline] và [bold underline]http://localhost:8000/?side=nhatrai[/bold underline]\n")
+    console.print(f"\n[green]✓[/green] Đã cập nhật [bold]{num_replaced}[/bold] khung ảnh cưới tự động.")
+    console.print(f"[green]✓[/green] Đã tạo 3 ảnh banner Open Graph (1200x630) tỉ lệ vàng chuẩn cho Zalo & Messenger.")
+    console.print(f"[green]✓[/green] Tên miền đang cấu hình: [bold underline]{domain}[/bold underline] (có thể đổi trong `custom_wedding/info.json`).\n")
     console.print("[dim]Để khôi phục lại mẫu gốc ban đầu: python3 apply_wedding.py --reset[/dim]\n")
 
 
