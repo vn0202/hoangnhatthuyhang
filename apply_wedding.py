@@ -230,10 +230,10 @@ def reset_to_original():
     console.print(f"[dim]File đã được reset: {INDEX_HTML}[/dim]\n")
 
 
-def prepare_custom_images() -> Tuple[Dict[str, str], int]:
+def prepare_custom_images() -> Tuple[Dict[str, str], int, int]:
     """
     Process custom images in custom_wedding/ and custom_wedding/album/.
-    Returns a dictionary mapping old slot URLs -> new image URLs, and count of replaced slots.
+    Returns a dictionary mapping old slot URLs -> new image URLs, count of replaced slots, and total album photos.
     """
     slot_mapping: Dict[str, str] = {}
     replaced_count = 0
@@ -282,10 +282,18 @@ def prepare_custom_images() -> Tuple[Dict[str, str], int]:
     album_photos = []
     if os.path.exists(ALBUM_DIR):
         valid_exts = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".JPG", ".JPEG", ".PNG", ".WEBP"}
-        for f in sorted(os.listdir(ALBUM_DIR)):
+        for f in os.listdir(ALBUM_DIR):
             _, ext = os.path.splitext(f)
             if ext.lower() in valid_exts:
                 album_photos.append(os.path.join(ALBUM_DIR, f))
+
+        def natural_sort_key(filename):
+            match = re.search(r'\d+', os.path.basename(filename))
+            return int(match.group()) if match else 0
+
+        album_photos.sort(key=natural_sort_key)
+
+    total_album_photos = len(album_photos)
 
     if album_photos:
         unfilled_slots = []
@@ -309,7 +317,30 @@ def prepare_custom_images() -> Tuple[Dict[str, str], int]:
             slot_mapping[old_slot] = f"images/{dest_name}"
             replaced_count += 1
 
-    return slot_mapping, replaced_count
+        # Prepare full-size photos & thumbnails in images/album for the full album slideshow
+        gallery_album_dir = os.path.join(IMAGES_DIR, "album")
+        os.makedirs(gallery_album_dir, exist_ok=True)
+        for idx, chosen in enumerate(album_photos, 1):
+            dest_full = os.path.join(gallery_album_dir, f"photo_{idx}.jpg")
+            dest_thumb = os.path.join(gallery_album_dir, f"thumb_{idx}.jpg")
+            if not (os.path.exists(dest_full) and os.path.exists(dest_thumb)):
+                try:
+                    from PIL import Image
+                    with Image.open(chosen) as im:
+                        im = im.convert("RGB")
+                        im_full = im.copy()
+                        im_full.thumbnail((1920, 1920), Image.Resampling.LANCZOS)
+                        im_full.save(dest_full, "JPEG", quality=88, optimize=True)
+
+                        im_thumb = im.copy()
+                        im_thumb.thumbnail((160, 160), Image.Resampling.LANCZOS)
+                        im_thumb.save(dest_thumb, "JPEG", quality=75, optimize=True)
+                except Exception:
+                    shutil.copyfile(chosen, dest_full)
+                    shutil.copyfile(chosen, dest_thumb)
+
+    return slot_mapping, replaced_count, total_album_photos
+
 
 
 DAY_ELEMENT_MAP = {
@@ -360,6 +391,428 @@ def generate_calendar_css(year: int, month: int, wedding_day: int) -> str:
     return "\n".join(rules)
 
 
+def generate_wedding_lightbox(total_photos: int, is_subfolder: bool) -> str:
+    img_prefix = "../images/album/" if is_subfolder else "images/album/"
+    css_prefix = "../css/" if is_subfolder else "css/"
+    js_prefix = "../js/" if is_subfolder else "js/"
+
+    slides_html = "\n".join([
+        f"""        <div class="swiper-slide"><img src="{img_prefix}photo_{i}.jpg" alt="Ảnh cưới {i}" /></div>"""
+        for i in range(1, total_photos + 1)
+    ])
+    thumbs_html = "\n".join([
+        f"""        <div class="swiper-slide"><img src="{img_prefix}thumb_{i}.jpg" alt="Thumb {i}" /></div>"""
+        for i in range(1, total_photos + 1)
+    ])
+
+    return f"""
+<!-- SWIPER CAROUSEL ASSETS -->
+<link rel="stylesheet" href="{css_prefix}swiper-bundle.min.css" />
+<script src="{js_prefix}swiper-bundle.min.js"></script>
+
+<!-- FULL WEDDING ALBUM LIGHTBOX (POWERED BY SWIPER) -->
+<div id="full-album-modal" class="wedding-lightbox" aria-hidden="true">
+  <!-- Top Bar -->
+  <div class="wl-topbar">
+    <div class="wl-brand">
+      <span class="wl-title">Hoàng Nhật &amp; Thúy Hằng</span>
+      <span class="wl-counter" id="wl-counter">1 / {total_photos}</span>
+    </div>
+    <div class="wl-actions">
+      <button type="button" class="wl-btn wl-btn-autoplay" id="wl-autoplay-btn" title="Tự động trình chiếu">
+        <svg class="wl-icon-play" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+        <svg class="wl-icon-pause" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" style="display:none;">
+          <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z"/>
+        </svg>
+        <span class="wl-autoplay-text">Trình chiếu</span>
+      </button>
+      <button type="button" class="wl-btn wl-btn-close" id="wl-close-btn" title="Đóng (Esc)">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Swiper Viewport -->
+  <div class="wl-main-container" id="wl-main-container">
+    <div class="swiper wl-main-swiper" id="wl-main-swiper">
+      <div class="swiper-wrapper">
+{slides_html}
+      </div>
+      <div class="swiper-button-prev wl-swiper-prev" id="wl-prev-btn"></div>
+      <div class="swiper-button-next wl-swiper-next" id="wl-next-btn"></div>
+    </div>
+  </div>
+
+  <!-- Bottom Thumbs Swiper -->
+  <div class="wl-thumbs-container">
+    <div class="swiper wl-thumbs-swiper" id="wl-thumbs-swiper">
+      <div class="swiper-wrapper">
+{thumbs_html}
+      </div>
+    </div>
+  </div>
+</div>
+
+<style type="text/css">
+.wedding-lightbox {{
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: radial-gradient(circle at center, rgba(14, 20, 32, 0.97) 0%, rgba(6, 10, 18, 0.99) 100%);
+  backdrop-filter: blur(25px);
+  -webkit-backdrop-filter: blur(25px);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+  user-select: none;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}}
+.wedding-lightbox.active {{
+  opacity: 1;
+  visibility: visible;
+}}
+
+/* Topbar */
+.wl-topbar {{
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 20px;
+  background: linear-gradient(to bottom, rgba(0,0,0,0.6), transparent);
+  z-index: 10;
+}}
+.wl-brand {{
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}}
+.wl-title {{
+  color: #fff;
+  font-family: "Cormorant Infant", serif, Georgia;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+}}
+.wl-counter {{
+  color: #e2e8f0;
+  font-size: 13px;
+  font-weight: 500;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  padding: 3px 10px;
+  border-radius: 20px;
+  backdrop-filter: blur(8px);
+}}
+.wl-actions {{
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}}
+.wl-btn {{
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  border-radius: 30px;
+  padding: 8px 14px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  transition: all 0.2s ease;
+  backdrop-filter: blur(10px);
+}}
+.wl-btn:hover {{
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
+  transform: translateY(-1px);
+}}
+.wl-btn-close {{
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  justify-content: center;
+  border-radius: 50%;
+}}
+.wl-btn-close:hover {{
+  transform: rotate(90deg) scale(1.05);
+}}
+
+/* Main Swiper */
+.wl-main-container {{
+  flex: 1;
+  width: 100%;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  box-sizing: border-box;
+}}
+.wl-main-swiper {{
+  width: 100%;
+  height: 100%;
+}}
+.wl-main-swiper .swiper-slide {{
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 16px;
+  box-sizing: border-box;
+}}
+.wl-main-swiper .swiper-slide img {{
+  max-width: 95vw;
+  max-height: 74vh;
+  object-fit: contain;
+  border-radius: 12px;
+  box-shadow: 0 25px 60px -10px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  user-select: none;
+  -webkit-user-drag: none;
+}}
+.wl-swiper-prev, .wl-swiper-next {{
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #fff !important;
+  backdrop-filter: blur(12px);
+  transition: all 0.25s ease;
+}}
+.wl-swiper-prev:after, .wl-swiper-next:after {{
+  font-size: 20px !important;
+  font-weight: bold;
+}}
+.wl-swiper-prev:hover, .wl-swiper-next:hover {{
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.08);
+  box-shadow: 0 0 20px rgba(212, 175, 55, 0.4);
+}}
+
+/* Thumbs Swiper */
+.wl-thumbs-container {{
+  width: 100%;
+  padding: 10px 16px 14px;
+  background: linear-gradient(to top, rgba(0,0,0,0.6), transparent);
+  box-sizing: border-box;
+}}
+.wl-thumbs-swiper {{
+  width: 100%;
+  padding: 4px 0;
+}}
+.wl-thumbs-swiper .swiper-slide {{
+  width: 52px !important;
+  height: 66px !important;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: pointer;
+  border: 2px solid rgba(255, 255, 255, 0.2);
+  opacity: 0.55;
+  transition: all 0.25s ease;
+}}
+.wl-thumbs-swiper .swiper-slide img {{
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}}
+.wl-thumbs-swiper .swiper-slide-thumb-active {{
+  opacity: 1;
+  border-color: #e2b755;
+  box-shadow: 0 0 14px rgba(226, 183, 85, 0.7);
+  transform: scale(1.08) translateY(-2px);
+}}
+
+/* Mobile responsive */
+@media (max-width: 600px) {{
+  .wl-topbar {{ padding: 12px 14px; }}
+  .wl-title {{ font-size: 16px; }}
+  .wl-autoplay-text {{ display: none; }}
+  .wl-btn-autoplay {{ padding: 8px; }}
+  .wl-swiper-prev, .wl-swiper-next {{ width: 40px; height: 40px; }}
+  .wl-swiper-prev:after, .wl-swiper-next:after {{ font-size: 16px !important; }}
+  .wl-main-swiper .swiper-slide img {{ max-height: 68vh; }}
+  .wl-thumbs-swiper .swiper-slide {{ width: 44px !important; height: 56px !important; }}
+}}
+
+/* Trigger button hover */
+#HEADLINE75, #BOX17, #BOX18, #BOX20, #BOX21, #BOX22, #BOX23, #BOX24, #BOX25, #IMAGE58, #IMAGE59 {{
+  cursor: pointer !important;
+}}
+#HEADLINE75:hover {{
+  filter: brightness(1.2) drop-shadow(0 0 8px rgba(255,255,255,0.5));
+  transform: scale(1.04);
+  transition: all 0.2s ease;
+}}
+</style>
+
+<script type="text/javascript">
+(function() {{
+  var modal = document.getElementById("full-album-modal");
+  var mainSwiper = null;
+  var thumbsSwiper = null;
+  var isPlaying = false;
+
+  var playBtn = document.getElementById("wl-autoplay-btn");
+  var playIcon = playBtn ? playBtn.querySelector(".wl-icon-play") : null;
+  var pauseIcon = playBtn ? playBtn.querySelector(".wl-icon-pause") : null;
+  var autoplayText = playBtn ? playBtn.querySelector(".wl-autoplay-text") : null;
+  var counter = document.getElementById("wl-counter");
+  var closeBtn = document.getElementById("wl-close-btn");
+
+  function initSwipers() {{
+    if (mainSwiper) return;
+    if (typeof Swiper === "undefined") return;
+
+    thumbsSwiper = new Swiper("#wl-thumbs-swiper", {{
+      spaceBetween: 8,
+      slidesPerView: "auto",
+      freeMode: true,
+      watchSlidesProgress: true,
+      centerInsufficientSlides: true,
+    }});
+
+    mainSwiper = new Swiper("#wl-main-swiper", {{
+      spaceBetween: 16,
+      speed: 400,
+      grabCursor: true,
+      resistanceRatio: 0.85,
+      keyboard: {{
+        enabled: true,
+      }},
+      navigation: {{
+        nextEl: "#wl-next-btn",
+        prevEl: "#wl-prev-btn",
+      }},
+      thumbs: {{
+        swiper: thumbsSwiper,
+      }},
+      autoplay: {{
+        delay: 3500,
+        disableOnInteraction: false,
+        pauseOnMouseEnter: true,
+      }},
+      on: {{
+        init: function() {{
+          this.autoplay.stop();
+        }},
+        slideChange: function() {{
+          if (counter) counter.textContent = (this.activeIndex + 1) + " / " + this.slides.length;
+        }}
+      }}
+    }});
+  }}
+
+  function stopAutoplay() {{
+    isPlaying = false;
+    if (mainSwiper && mainSwiper.autoplay) mainSwiper.autoplay.stop();
+    if (playIcon) playIcon.style.display = "";
+    if (pauseIcon) pauseIcon.style.display = "none";
+    if (autoplayText) autoplayText.textContent = "Trình chiếu";
+  }}
+
+  function startAutoplay() {{
+    isPlaying = true;
+    if (mainSwiper && mainSwiper.autoplay) mainSwiper.autoplay.start();
+    if (playIcon) playIcon.style.display = "none";
+    if (pauseIcon) pauseIcon.style.display = "";
+    if (autoplayText) autoplayText.textContent = "Tạm dừng";
+  }}
+
+  function toggleAutoplay() {{
+    if (isPlaying) stopAutoplay();
+    else startAutoplay();
+  }}
+
+  window.openFullAlbum = function(index) {{
+    index = typeof index === "number" ? index : 0;
+    initSwipers();
+    modal.classList.add("active");
+    modal.setAttribute("aria-hidden", "false");
+    document.body.style.overflow = "hidden";
+    if (mainSwiper) {{
+      mainSwiper.update();
+      thumbsSwiper.update();
+      mainSwiper.slideTo(index, 0);
+    }}
+  }};
+
+  window.closeFullAlbum = function() {{
+    stopAutoplay();
+    modal.classList.remove("active");
+    modal.setAttribute("aria-hidden", "true");
+    document.body.style.overflow = "";
+  }};
+
+  if (closeBtn) closeBtn.addEventListener("click", window.closeFullAlbum);
+  if (playBtn) playBtn.addEventListener("click", function(e) {{
+    e.stopPropagation();
+    toggleAutoplay();
+  }});
+
+  // Close when clicking outside image slide
+  var mainContainer = document.getElementById("wl-main-container");
+  if (mainContainer) {{
+    mainContainer.addEventListener("click", function(e) {{
+      if (e.target === mainContainer || e.target.classList.contains("swiper-slide")) {{
+        window.closeFullAlbum();
+      }}
+    }});
+  }}
+
+  // Escape key
+  document.addEventListener("keydown", function(e) {{
+    if (modal && modal.classList.contains("active") && e.key === "Escape") {{
+      window.closeFullAlbum();
+    }}
+  }});
+
+  // Capture clicks on HEADLINE75 and Album photos
+  document.addEventListener("click", function(e) {{
+    var fullAlbumBtn = e.target.closest("#HEADLINE75");
+    if (fullAlbumBtn) {{
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+      window.openFullAlbum(0);
+      return false;
+    }}
+
+    var albumBox = e.target.closest("#BOX17, #BOX18, #BOX20, #BOX21, #BOX22, #BOX23, #BOX24, #BOX25, #IMAGE58, #IMAGE59");
+    if (albumBox) {{
+      var boxMap = {{
+        "BOX17": 0, "BOX18": 1, "BOX20": 2, "BOX21": 3,
+        "BOX22": 4, "BOX23": 5, "BOX24": 6, "BOX25": 7,
+        "IMAGE58": 8, "IMAGE59": 9
+      }};
+      var idx = boxMap[albumBox.id];
+      if (typeof idx === "number") {{
+        e.preventDefault();
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        window.openFullAlbum(idx);
+        return false;
+      }}
+    }}
+  }}, true);
+
+}})();
+</script>
+<!-- END FULL WEDDING ALBUM LIGHTBOX -->
+"""
+
+
+
 def render_page(
     base_html: str,
     config: dict,
@@ -367,6 +820,7 @@ def render_page(
     slot_mapping: Dict[str, str],
     is_subfolder: bool = False,
     is_root: bool = False,
+    total_album_photos: int = 0,
 ) -> str:
     """Render a customized HTML page for either Nhà Trai or Nhà Gái."""
     html = base_html
@@ -1084,7 +1538,14 @@ def render_page(
         html = html.replace('url(\'fonts/', 'url(\'../fonts/')
         html = html.replace('content="images/', 'content="../images/')
 
+    # 8. Full Album Slideshow & Lightbox Modal
+    html = html.replace("https://photos.app.goo.gl/WoHaX2xmn4QDxfRY9", "#full-album")
+    if total_album_photos > 0:
+        lightbox_markup = generate_wedding_lightbox(total_album_photos, is_subfolder)
+        html = html.replace("</body>", lightbox_markup + "\n</body>", 1)
+
     return html
+
 
 
 def inject_smart_router(html: str) -> str:
@@ -1137,12 +1598,12 @@ def main():
     )
 
     # Prepare custom photos & OG share banners (1200x630)
-    slot_mapping, num_replaced = prepare_custom_images()
+    slot_mapping, num_replaced, total_album = prepare_custom_images()
     generate_og_banners(config, CUSTOM_DIR, IMAGES_DIR)
 
     # 1. Render Nhà Trai page
-    trai_html_sub = render_page(base_html, config, "trai", slot_mapping, is_subfolder=True, is_root=False)
-    trai_html_root = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=False)
+    trai_html_sub = render_page(base_html, config, "trai", slot_mapping, is_subfolder=True, is_root=False, total_album_photos=total_album)
+    trai_html_root = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=False, total_album_photos=total_album)
 
     os.makedirs(NHA_TRAI_DIR, exist_ok=True)
     with open(os.path.join(NHA_TRAI_DIR, "index.html"), "w", encoding="utf-8") as f:
@@ -1151,8 +1612,8 @@ def main():
         f.write(trai_html_root)
 
     # 2. Render Nhà Gái page
-    gai_html_sub = render_page(base_html, config, "gai", slot_mapping, is_subfolder=True, is_root=False)
-    gai_html_root = render_page(base_html, config, "gai", slot_mapping, is_subfolder=False, is_root=False)
+    gai_html_sub = render_page(base_html, config, "gai", slot_mapping, is_subfolder=True, is_root=False, total_album_photos=total_album)
+    gai_html_root = render_page(base_html, config, "gai", slot_mapping, is_subfolder=False, is_root=False, total_album_photos=total_album)
 
     os.makedirs(NHA_GAI_DIR, exist_ok=True)
     with open(os.path.join(NHA_GAI_DIR, "index.html"), "w", encoding="utf-8") as f:
@@ -1161,7 +1622,7 @@ def main():
         f.write(gai_html_root)
 
     # 3. Render Root index.html (is_root=True với Open Graph chung & bộ định tuyến thông minh)
-    root_html_base = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=True)
+    root_html_base = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=True, total_album_photos=total_album)
     root_html = inject_smart_router(root_html_base)
     with open(INDEX_HTML, "w", encoding="utf-8") as f:
         f.write(root_html)
