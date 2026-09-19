@@ -949,6 +949,7 @@ def render_page(
 
     timeline_pos = config.get("can_chinh_anh_timeline", "center 80%")
     savedate_pos = config.get("can_chinh_anh_savedate", "center 20%")
+    album1_pos = config.get("can_chinh_anh_album1", "50% 37%")
 
     # 6. Mừng Cưới Button visibility
     gift_button_css = ""
@@ -1053,12 +1054,15 @@ def render_page(
     top: 1652px !important;
 }}
 
-/* Căn chỉnh vị trí ảnh Timeline & Save the date cân đối */
+/* Căn chỉnh vị trí ảnh Timeline, Save the date & Album đầu tiên cân đối */
 #BOX9 > .ladi-box {{
     background-position: {timeline_pos} !important;
 }}
 #BOX3 > .ladi-box {{
     background-position: {savedate_pos} !important;
+}}
+#BOX17 > .ladi-box {{
+    background-position: {album1_pos} !important;
 }}
 
 {gift_button_css}
