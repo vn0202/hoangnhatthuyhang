@@ -12,7 +12,7 @@
       ]
     },
     {
-      "source": "/(css|fonts|images|js|media)/(.*)",
+      "source": "/(css|fonts|images|js|media|custom_wedding)/(.*)",
       "headers": [
         {
           "key": "Cache-Control",

@@ -317,29 +317,9 @@ def prepare_custom_images() -> Tuple[Dict[str, str], int, int]:
             slot_mapping[old_slot] = f"images/{dest_name}"
             replaced_count += 1
 
-        # Prepare full-size photos & thumbnails in images/album for the full album slideshow
-        gallery_album_dir = os.path.join(IMAGES_DIR, "album")
-        os.makedirs(gallery_album_dir, exist_ok=True)
-        for idx, chosen in enumerate(album_photos, 1):
-            dest_full = os.path.join(gallery_album_dir, f"photo_{idx}.jpg")
-            dest_thumb = os.path.join(gallery_album_dir, f"thumb_{idx}.jpg")
-            if not (os.path.exists(dest_full) and os.path.exists(dest_thumb)):
-                try:
-                    from PIL import Image
-                    with Image.open(chosen) as im:
-                        im = im.convert("RGB")
-                        im_full = im.copy()
-                        im_full.thumbnail((1920, 1920), Image.Resampling.LANCZOS)
-                        im_full.save(dest_full, "JPEG", quality=88, optimize=True)
+    album_files = [os.path.basename(p) for p in album_photos]
+    return slot_mapping, replaced_count, album_files
 
-                        im_thumb = im.copy()
-                        im_thumb.thumbnail((160, 160), Image.Resampling.LANCZOS)
-                        im_thumb.save(dest_thumb, "JPEG", quality=75, optimize=True)
-                except Exception:
-                    shutil.copyfile(chosen, dest_full)
-                    shutil.copyfile(chosen, dest_thumb)
-
-    return slot_mapping, replaced_count, total_album_photos
 
 
 
@@ -391,19 +371,21 @@ def generate_calendar_css(year: int, month: int, wedding_day: int) -> str:
     return "\n".join(rules)
 
 
-def generate_wedding_lightbox(total_photos: int, is_subfolder: bool) -> str:
-    img_prefix = "../images/album/" if is_subfolder else "images/album/"
+def generate_wedding_lightbox(album_files: list, is_subfolder: bool) -> str:
+    prefix = "../custom_wedding/album/" if is_subfolder else "custom_wedding/album/"
     css_prefix = "../css/" if is_subfolder else "css/"
     js_prefix = "../js/" if is_subfolder else "js/"
+    total_photos = len(album_files)
 
     slides_html = "\n".join([
-        f"""        <div class="swiper-slide"><img src="{img_prefix}photo_{i}.jpg" alt="Ảnh cưới {i}" /></div>"""
-        for i in range(1, total_photos + 1)
+        f"""        <div class="swiper-slide"><img src="{prefix}{fname}" alt="Ảnh cưới {i}" loading="lazy" /></div>"""
+        for i, fname in enumerate(album_files, 1)
     ])
     thumbs_html = "\n".join([
-        f"""        <div class="swiper-slide"><img src="{img_prefix}thumb_{i}.jpg" alt="Thumb {i}" /></div>"""
-        for i in range(1, total_photos + 1)
+        f"""        <div class="swiper-slide"><img src="{prefix}{fname}" alt="Thumb {i}" loading="lazy" /></div>"""
+        for i, fname in enumerate(album_files, 1)
     ])
+
 
     return f"""
 <!-- SWIPER CAROUSEL ASSETS -->
@@ -821,6 +803,7 @@ def render_page(
     is_subfolder: bool = False,
     is_root: bool = False,
     total_album_photos: int = 0,
+    album_files: list = None,
 ) -> str:
     """Render a customized HTML page for either Nhà Trai or Nhà Gái."""
     html = base_html
@@ -1404,6 +1387,7 @@ def render_page(
     timeline_pos = config.get("can_chinh_anh_timeline", "center 80%")
     savedate_pos = config.get("can_chinh_anh_savedate", "center 20%")
     album1_pos = config.get("can_chinh_anh_album1", "50% 37%")
+    thankyou_pos = config.get("can_chinh_anh_thankyou", "50% 65%")
 
     # 6. Mừng Cưới Button visibility
     gift_button_css = ""
@@ -1518,6 +1502,10 @@ def render_page(
 #BOX17 > .ladi-box {{
     background-position: {album1_pos} !important;
 }}
+#BOX26 > .ladi-box {{
+    background-position: {thankyou_pos} !important;
+}}
+
 
 {gift_button_css}
 {dual_events_css}
@@ -1540,9 +1528,10 @@ def render_page(
 
     # 8. Full Album Slideshow & Lightbox Modal
     html = html.replace("https://photos.app.goo.gl/WoHaX2xmn4QDxfRY9", "#full-album")
-    if total_album_photos > 0:
-        lightbox_markup = generate_wedding_lightbox(total_album_photos, is_subfolder)
+    if album_files:
+        lightbox_markup = generate_wedding_lightbox(album_files, is_subfolder)
         html = html.replace("</body>", lightbox_markup + "\n</body>", 1)
+
 
     return html
 
@@ -1598,12 +1587,12 @@ def main():
     )
 
     # Prepare custom photos & OG share banners (1200x630)
-    slot_mapping, num_replaced, total_album = prepare_custom_images()
+    slot_mapping, num_replaced, album_files = prepare_custom_images()
     generate_og_banners(config, CUSTOM_DIR, IMAGES_DIR)
 
     # 1. Render Nhà Trai page
-    trai_html_sub = render_page(base_html, config, "trai", slot_mapping, is_subfolder=True, is_root=False, total_album_photos=total_album)
-    trai_html_root = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=False, total_album_photos=total_album)
+    trai_html_sub = render_page(base_html, config, "trai", slot_mapping, is_subfolder=True, is_root=False, album_files=album_files)
+    trai_html_root = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=False, album_files=album_files)
 
     os.makedirs(NHA_TRAI_DIR, exist_ok=True)
     with open(os.path.join(NHA_TRAI_DIR, "index.html"), "w", encoding="utf-8") as f:
@@ -1612,8 +1601,8 @@ def main():
         f.write(trai_html_root)
 
     # 2. Render Nhà Gái page
-    gai_html_sub = render_page(base_html, config, "gai", slot_mapping, is_subfolder=True, is_root=False, total_album_photos=total_album)
-    gai_html_root = render_page(base_html, config, "gai", slot_mapping, is_subfolder=False, is_root=False, total_album_photos=total_album)
+    gai_html_sub = render_page(base_html, config, "gai", slot_mapping, is_subfolder=True, is_root=False, album_files=album_files)
+    gai_html_root = render_page(base_html, config, "gai", slot_mapping, is_subfolder=False, is_root=False, album_files=album_files)
 
     os.makedirs(NHA_GAI_DIR, exist_ok=True)
     with open(os.path.join(NHA_GAI_DIR, "index.html"), "w", encoding="utf-8") as f:
@@ -1622,7 +1611,7 @@ def main():
         f.write(gai_html_root)
 
     # 3. Render Root index.html (is_root=True với Open Graph chung & bộ định tuyến thông minh)
-    root_html_base = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=True, total_album_photos=total_album)
+    root_html_base = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=True, album_files=album_files)
     root_html = inject_smart_router(root_html_base)
     with open(INDEX_HTML, "w", encoding="utf-8") as f:
         f.write(root_html)
