@@ -1,0 +1,51 @@
+{
+  "hien_nut_mung_cuoi": true,
+  "chu_re": {
+    "ten_day_du": "TRẦN HOÀNG NHẬT",
+    "ten_ngan": "HOÀNG NHẬT",
+    "bo": "Ông. Trần Anh Tuấn",
+    "me": "Bà. Đỗ Thị Lan Anh",
+    "ten_ngan_hang": "",
+    "so_tai_khoan": "",
+    "chu_tai_khoan": "TRAN HOANG NHAT"
+  },
+  "co_dau": {
+    "ten_day_du": "VŨ THÚY HẰNG",
+    "ten_ngan": "THÚY HẰNG",
+    "bo": "Ông. Vũ Văn Dương",
+    "me": "Bà. Nguyễn Thị Kim Huệ",
+    "ten_ngan_hang": "",
+    "so_tai_khoan": "",
+    "chu_tai_khoan": "VU THUY HANG"
+  },
+  "tiec_nha_trai": {
+    "tieu_de_le": "LỄ THÀNH HÔN",
+    "ngay_duong_lich": "18.10.2026",
+    "thu": "CHỦ NHẬT",
+    "ngay": "18",
+    "thang": "10",
+    "nam": "2026",
+    "ngay_am_lich": "9 tháng 9 năm Bính Ngọ",
+    "gio_to_chuc": "11 giờ 00 phút",
+    "gio_ngan": "11:00",
+    "gio_don_khach": "10:30",
+    "gio_khai_tiec": "11:30",
+    "ten_dia_diem": "Sảnh 5 - Tiệc cưới Mipec Tây Sơn",
+    "dia_chi": "229 Phố Tây Sơn, Kim Liên, Hà Nội"
+  },
+  "tiec_nha_gai": {
+    "tieu_de_le": "LỄ VU QUY",
+    "ngay_duong_lich": "18.10.2026",
+    "thu": "CHỦ NHẬT",
+    "ngay": "18",
+    "thang": "10",
+    "nam": "2026",
+    "ngay_am_lich": "9 tháng 9 năm Bính Ngọ",
+    "gio_to_chuc": "16 giờ 30 phút",
+    "gio_ngan": "16:30",
+    "gio_don_khach": "16:00",
+    "gio_khai_tiec": "17:00",
+    "ten_dia_diem": "Tư gia Nhà Gái",
+    "dia_chi": "Thọ Vực, Xã Xuân Giang, Tỉnh Ninh Bình (Xóm 7, xã Xuân Phong cũ)"
+  }
+}
