@@ -29,6 +29,26 @@ CONFIG_FILE = os.path.join(CUSTOM_DIR, "info.json")
 ALBUM_DIR = os.path.join(CUSTOM_DIR, "album")
 IMAGES_DIR = os.path.join(SITE_DIR, "images")
 
+
+def get_album_dir(config: Optional[dict] = None) -> Tuple[str, str]:
+    """
+    Return (full_album_path, folder_name) based on config and available directories.
+    Priority:
+    1. config['thu_muc_album'] if defined and exists in custom_wedding/
+    2. 'album2' folder in custom_wedding/ if it exists
+    3. 'album' folder in custom_wedding/
+    """
+    if config and config.get("thu_muc_album"):
+        folder_name = config["thu_muc_album"].strip()
+        custom_album = os.path.join(CUSTOM_DIR, folder_name)
+        if os.path.exists(custom_album):
+            return custom_album, folder_name
+    album2_dir = os.path.join(CUSTOM_DIR, "album2")
+    if os.path.exists(album2_dir):
+        return album2_dir, "album2"
+    return os.path.join(CUSTOM_DIR, "album"), "album"
+
+
 # Subdirectories for dual sides
 NHA_TRAI_DIR = os.path.join(SITE_DIR, "nhatrai")
 NHA_GAI_DIR = os.path.join(SITE_DIR, "nhagai")
@@ -230,11 +250,13 @@ def reset_to_original():
     console.print(f"[dim]File đã được reset: {INDEX_HTML}[/dim]\n")
 
 
-def prepare_custom_images() -> Tuple[Dict[str, str], int, int]:
+def prepare_custom_images(album_dir: Optional[str] = None) -> Tuple[Dict[str, str], int, list]:
     """
-    Process custom images in custom_wedding/ and custom_wedding/album/.
-    Returns a dictionary mapping old slot URLs -> new image URLs, count of replaced slots, and total album photos.
+    Process custom images in custom_wedding/ and custom_wedding/album/ (or album2/).
+    Returns a dictionary mapping old slot URLs -> new image URLs, count of replaced slots, and list of album files.
     """
+    if not album_dir:
+        album_dir, _ = get_album_dir()
     slot_mapping: Dict[str, str] = {}
     replaced_count = 0
 
@@ -278,14 +300,14 @@ def prepare_custom_images() -> Tuple[Dict[str, str], int, int]:
         slot_mapping[TIMELINE_SLOT] = f"images/{dest_timeline}"
         replaced_count += 1
 
-    # 6. Remaining slots: fill from album/
+    # 6. Remaining slots: fill from album_dir
     album_photos = []
-    if os.path.exists(ALBUM_DIR):
+    if os.path.exists(album_dir):
         valid_exts = {".jpg", ".jpeg", ".png", ".webp", ".avif", ".JPG", ".JPEG", ".PNG", ".WEBP"}
-        for f in os.listdir(ALBUM_DIR):
+        for f in os.listdir(album_dir):
             _, ext = os.path.splitext(f)
             if ext.lower() in valid_exts:
-                album_photos.append(os.path.join(ALBUM_DIR, f))
+                album_photos.append(os.path.join(album_dir, f))
 
         def natural_sort_key(filename):
             match = re.search(r'\d+', os.path.basename(filename))
@@ -371,8 +393,8 @@ def generate_calendar_css(year: int, month: int, wedding_day: int) -> str:
     return "\n".join(rules)
 
 
-def generate_wedding_lightbox(album_files: list, is_subfolder: bool) -> str:
-    prefix = "../custom_wedding/album/" if is_subfolder else "custom_wedding/album/"
+def generate_wedding_lightbox(album_files: list, is_subfolder: bool, album_folder_name: str = "album", title: str = "Hoàng Nhật &amp; Thúy Hằng") -> str:
+    prefix = f"../custom_wedding/{album_folder_name}/" if is_subfolder else f"custom_wedding/{album_folder_name}/"
     css_prefix = "../css/" if is_subfolder else "css/"
     js_prefix = "../js/" if is_subfolder else "js/"
     total_photos = len(album_files)
@@ -397,7 +419,7 @@ def generate_wedding_lightbox(album_files: list, is_subfolder: bool) -> str:
   <!-- Top Bar -->
   <div class="wl-topbar">
     <div class="wl-brand">
-      <span class="wl-title">Hoàng Nhật &amp; Thúy Hằng</span>
+      <span class="wl-title">{title}</span>
       <span class="wl-counter" id="wl-counter">1 / {total_photos}</span>
     </div>
     <div class="wl-actions">
@@ -804,6 +826,7 @@ def render_page(
     is_root: bool = False,
     total_album_photos: int = 0,
     album_files: list = None,
+    album_folder_name: str = "album",
 ) -> str:
     """Render a customized HTML page for either Nhà Trai or Nhà Gái."""
     html = base_html
@@ -818,6 +841,9 @@ def render_page(
 
     cr_title = cr_short.title()
     cd_title = cd_short.title()
+
+    main_wedding_date = (config.get("ngay_cuoi_chinh") or config.get("tiec_nha_trai", {}).get("ngay_duong_lich") or "18.10.2026").strip()
+    main_wedding_day = int(config.get("ngay_chinh") or config.get("tiec_nha_trai", {}).get("ngay") or 18)
 
     # Determine event details for this side
     if side == "gai":
@@ -983,8 +1009,8 @@ def render_page(
         ("Ông. Nguyễn Hữu Thu", co_dau.get("bo", "Ông. Nguyễn Hữu Thu")),
         ("Bà. Trịnh Thị Thủy", co_dau.get("me", "Bà. Trịnh Thị Thủy")),
 
-        # Event Dates & Times
-        ("30.10.2025", date_str),
+        # Event Dates & Times (Save the date always uses main wedding date)
+        ("30.10.2025", main_wedding_date),
         ("10 tháng 09 năm Ất Tỵ", lunar_str),
         ("THỨ NĂM", day_name),
         ("17 giờ 30 phút", time_long),
@@ -1129,7 +1155,7 @@ def render_page(
 #IMAGE7, #IMAGE8 {
     display: none !important;
 }
-#HEADLINE134 {
+#HEADLINE133 {
     border: 1px dashed rgb(63, 92, 132) !important;
     border-radius: 50% !important;
     width: 32px !important;
@@ -1320,7 +1346,7 @@ def render_page(
         import datetime
         c_year = int(new_year) if new_year else 2026
         c_month = int(new_month) if new_month else 10
-        c_day = int(new_day) if new_day else (18 if side == "trai" else 17)
+        c_day = main_wedding_day
         c_hour = int(time_short.split(":")[0]) if ":" in time_short else (11 if side == "trai" else 16)
         c_min = int(time_short.split(":")[1]) if ":" in time_short else (0 if side == "trai" else 30)
         c_dt = datetime.datetime(c_year, c_month, c_day, c_hour, c_min, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=7)))
@@ -1381,7 +1407,7 @@ def render_page(
     # 5. Dynamic Calendar Grid & Heart calculation for exact month/year/wedding day
     cal_year = int(new_year) if new_year else 2026
     cal_month = int(new_month) if new_month else 10
-    cal_day = int(new_day) if new_day else (18 if side == "trai" else 17)
+    cal_day = main_wedding_day
     calendar_rules = generate_calendar_css(cal_year, cal_month, cal_day)
 
     timeline_pos = config.get("can_chinh_anh_timeline", "center 80%")
@@ -1529,7 +1555,12 @@ def render_page(
     # 8. Full Album Slideshow & Lightbox Modal
     html = html.replace("https://photos.app.goo.gl/WoHaX2xmn4QDxfRY9", "#full-album")
     if album_files:
-        lightbox_markup = generate_wedding_lightbox(album_files, is_subfolder)
+        lightbox_markup = generate_wedding_lightbox(
+            album_files,
+            is_subfolder,
+            album_folder_name=album_folder_name,
+            title=f"{cr_short} &amp; {cd_short}"
+        )
         html = html.replace("</body>", lightbox_markup + "\n</body>", 1)
 
 
@@ -1587,12 +1618,13 @@ def main():
     )
 
     # Prepare custom photos & OG share banners (1200x630)
-    slot_mapping, num_replaced, album_files = prepare_custom_images()
+    album_dir, album_folder_name = get_album_dir(config)
+    slot_mapping, num_replaced, album_files = prepare_custom_images(album_dir)
     generate_og_banners(config, CUSTOM_DIR, IMAGES_DIR)
 
     # 1. Render Nhà Trai page
-    trai_html_sub = render_page(base_html, config, "trai", slot_mapping, is_subfolder=True, is_root=False, album_files=album_files)
-    trai_html_root = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=False, album_files=album_files)
+    trai_html_sub = render_page(base_html, config, "trai", slot_mapping, is_subfolder=True, is_root=False, album_files=album_files, album_folder_name=album_folder_name)
+    trai_html_root = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=False, album_files=album_files, album_folder_name=album_folder_name)
 
     os.makedirs(NHA_TRAI_DIR, exist_ok=True)
     with open(os.path.join(NHA_TRAI_DIR, "index.html"), "w", encoding="utf-8") as f:
@@ -1601,8 +1633,8 @@ def main():
         f.write(trai_html_root)
 
     # 2. Render Nhà Gái page
-    gai_html_sub = render_page(base_html, config, "gai", slot_mapping, is_subfolder=True, is_root=False, album_files=album_files)
-    gai_html_root = render_page(base_html, config, "gai", slot_mapping, is_subfolder=False, is_root=False, album_files=album_files)
+    gai_html_sub = render_page(base_html, config, "gai", slot_mapping, is_subfolder=True, is_root=False, album_files=album_files, album_folder_name=album_folder_name)
+    gai_html_root = render_page(base_html, config, "gai", slot_mapping, is_subfolder=False, is_root=False, album_files=album_files, album_folder_name=album_folder_name)
 
     os.makedirs(NHA_GAI_DIR, exist_ok=True)
     with open(os.path.join(NHA_GAI_DIR, "index.html"), "w", encoding="utf-8") as f:
@@ -1611,7 +1643,7 @@ def main():
         f.write(gai_html_root)
 
     # 3. Render Root index.html (is_root=True với Open Graph chung & bộ định tuyến thông minh)
-    root_html_base = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=True, album_files=album_files)
+    root_html_base = render_page(base_html, config, "trai", slot_mapping, is_subfolder=False, is_root=True, album_files=album_files, album_folder_name=album_folder_name)
     root_html = inject_smart_router(root_html_base)
     with open(INDEX_HTML, "w", encoding="utf-8") as f:
         f.write(root_html)
@@ -1652,6 +1684,7 @@ def main():
     console.print(table)
 
     console.print(f"\n[green]✓[/green] Đã cập nhật [bold]{num_replaced}[/bold] khung ảnh cưới tự động.")
+    console.print(f"[green]✓[/green] Thư mục album đang kích hoạt: [bold cyan]{album_folder_name}[/bold cyan] ({len(album_files)} ảnh).")
     console.print(f"[green]✓[/green] Đã tạo 3 ảnh banner Open Graph (1200x630) tỉ lệ vàng chuẩn cho Zalo & Messenger.")
     console.print(f"[green]✓[/green] Tên miền đang cấu hình: [bold underline]{domain}[/bold underline] (có thể đổi trong `custom_wedding/info.json`).\n")
     console.print("[dim]Để khôi phục lại mẫu gốc ban đầu: python3 apply_wedding.py --reset[/dim]\n")
