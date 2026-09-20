@@ -781,17 +781,8 @@ def generate_wedding_lightbox(album_files: list, is_subfolder: bool, album_folde
     }}
   }});
 
-  // Capture clicks on HEADLINE75 and Album photos
+  // Capture clicks on Album photos to open lightbox
   document.addEventListener("click", function(e) {{
-    var fullAlbumBtn = e.target.closest("#HEADLINE75");
-    if (fullAlbumBtn) {{
-      e.preventDefault();
-      e.stopPropagation();
-      e.stopImmediatePropagation();
-      window.openFullAlbum(0);
-      return false;
-    }}
-
     var albumBox = e.target.closest("#BOX17, #BOX18, #BOX20, #BOX21, #BOX22, #BOX23, #BOX24, #BOX25, #IMAGE58, #IMAGE59");
     if (albumBox) {{
       var boxMap = {{
@@ -1410,10 +1401,12 @@ def render_page(
     cal_day = main_wedding_day
     calendar_rules = generate_calendar_css(cal_year, cal_month, cal_day)
 
-    timeline_pos = config.get("can_chinh_anh_timeline", "center 80%")
+    timeline_pos = config.get("can_chinh_anh_timeline", "center 95%")
     savedate_pos = config.get("can_chinh_anh_savedate", "center 20%")
     album1_pos = config.get("can_chinh_anh_album1", "50% 37%")
     thankyou_pos = config.get("can_chinh_anh_thankyou", "50% 65%")
+    hero_pos = config.get("can_chinh_anh_hero", "48% 60%")
+    hero_scale = config.get("scale_anh_hero", "106%")
 
     # 6. Mừng Cưới Button visibility
     gift_button_css = ""
@@ -1518,7 +1511,11 @@ def render_page(
     top: 1652px !important;
 }}
 
-/* Căn chỉnh vị trí ảnh Timeline, Save the date & Album đầu tiên cân đối */
+/* Căn chỉnh vị trí ảnh Hero, Timeline, Save the date & Album đầu tiên cân đối */
+#BOX1 > .ladi-box {{
+    background-size: {hero_scale} !important;
+    background-position: {hero_pos} !important;
+}}
 #BOX9 > .ladi-box {{
     background-position: {timeline_pos} !important;
 }}
@@ -1552,8 +1549,10 @@ def render_page(
         html = html.replace('url(\'fonts/', 'url(\'../fonts/')
         html = html.replace('content="images/', 'content="../images/')
 
-    # 8. Full Album Slideshow & Lightbox Modal
-    html = html.replace("https://photos.app.goo.gl/WoHaX2xmn4QDxfRY9", "#full-album")
+    # 8. Full Album External Link & Lightbox Modal
+    full_album_link = config.get("link_full_album", "https://photos.app.goo.gl/Nm2Mkga4rxEYE3bp9").strip()
+    html = html.replace("https://photos.app.goo.gl/WoHaX2xmn4QDxfRY9", full_album_link)
+    html = html.replace("#full-album", full_album_link)
     if album_files:
         lightbox_markup = generate_wedding_lightbox(
             album_files,
