@@ -1013,12 +1013,12 @@ def render_page(
         ("Aquaria Palace", venue_name),
     ]
 
-    # Timeline event times (Đón khách, Lễ, Khai tiệc) - Đồng bộ giữ nguyên như Nhà Trai
-    trai_ev = config.get("tiec_nha_trai", {})
-    tl_don_khach = trai_ev.get("gio_don_khach", "10:30")
-    tl_le_gio = trai_ev.get("gio_ngan", "11:00")
-    tl_le_title = trai_ev.get("tieu_de_le", "LỄ THÀNH HÔN")
-    tl_khai_tiec = trai_ev.get("gio_khai_tiec", "11:30")
+    # Timeline event times (Đón khách, Lễ, Khai tiệc)
+    tl_ev = event
+    tl_don_khach = tl_ev.get("gio_don_khach", "16:00" if side == "gai" else "10:30")
+    tl_le_gio = tl_ev.get("gio_ngan", "16:30" if side == "gai" else "11:00")
+    tl_le_title = tl_ev.get("tieu_de_le", "LỄ VU QUY" if side == "gai" else "LỄ THÀNH HÔN")
+    tl_khai_tiec = tl_ev.get("gio_khai_tiec", "17:00" if side == "gai" else "11:30")
 
     text_replacements.extend([
         ("17:00", tl_don_khach),
@@ -1039,7 +1039,7 @@ def render_page(
         if target in html:
             html = html.replace(target, repl)
 
-    # Timeline elements precision replacement - Giữ nguyên như Nhà Trai cho cả 2 bên
+    # Timeline elements precision replacement
     html = re.sub(r'(id="HEADLINE213"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{tl_don_khach}\g<2>', html)
     html = re.sub(r'(id="HEADLINE216"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{tl_le_gio}\g<2>', html)
     html = re.sub(r'(id="HEADLINE218"[^>]*><p[^>]*>).*?(</p>)', rf'\g<1>{tl_le_title}\g<2>', html)
@@ -1050,18 +1050,13 @@ def render_page(
     if side == "gai":
         import urllib.parse
         tiec_gai = config.get("tiec_nha_gai", {})
-        tiec_trai = config.get("tiec_nha_trai", {})
 
         venue_gai = tiec_gai.get("ten_dia_diem", "Tư gia Nhà Gái")
         addr_gai = tiec_gai.get("dia_chi", "")
         maps_vu_quy = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote((venue_gai + ' ' + addr_gai).strip())}"
 
-        venue_trai = tiec_trai.get("ten_dia_diem", "Sảnh 5 - Tiệc cưới Mipec Tây Sơn")
-        addr_trai = tiec_trai.get("dia_chi", "229 Phố Tây Sơn, Kim Liên, Hà Nội")
-        maps_thanh_hon = f"https://www.google.com/maps/search/?api=1&query={urllib.parse.quote((venue_trai + ' ' + addr_trai).strip())}"
-
         dual_events_html = f"""<div class="wedding-dual-container">
-  <!-- KHỐI 1: LỄ VU QUY (TƯ GIA NHÀ GÁI) -->
+  <!-- KHỐI LỄ VU QUY (TƯ GIA NHÀ GÁI) -->
   <div class="wedding-event-card">
     <div class="wedding-top-decor">
       <img src="images/gedgvdf-20250323084817-ey8uu.png" alt="decor" class="wedding-decor-img"/>
@@ -1093,46 +1088,6 @@ def render_page(
       </a>
     </div>
   </div>
-
-  <!-- PHÂN CÁCH TRANG TRỌNG -->
-  <div class="wedding-dual-divider">
-    <span class="wedding-div-line"></span>
-    <span class="wedding-div-icon">❦</span>
-    <span class="wedding-div-line"></span>
-  </div>
-
-  <!-- KHỐI 2: LỄ THÀNH HÔN (MIPEC TÂY SƠN) -->
-  <div class="wedding-event-card">
-    <div class="wedding-top-decor">
-      <img src="images/gedgvdf-20250323084817-ey8uu.png" alt="decor" class="wedding-decor-img"/>
-    </div>
-    <div class="wedding-ceremony-title">{tiec_trai.get('tieu_de_le', 'LỄ THÀNH HÔN')} ĐƯỢC TỔ CHỨC</div>
-    <div class="wedding-ceremony-time">VÀO LÚC {tiec_trai.get('gio_to_chuc', '11 giờ 00 phút').upper()}</div>
-    
-    <div class="wedding-date-box">
-      <div class="wedding-date-dayname">{tiec_trai.get('thu', 'CHỦ NHẬT')}</div>
-      <div class="wedding-date-row">
-        <div class="wedding-date-month">THÁNG {tiec_trai.get('thang', '10')}</div>
-        <div class="wedding-date-num">{tiec_trai.get('ngay', '18')}</div>
-        <div class="wedding-date-year">NĂM {tiec_trai.get('nam', '2026')}</div>
-      </div>
-      <div class="wedding-date-lunar">(Tức ngày {tiec_trai.get('ngay_am_lich', '9 tháng 9 năm Bính Ngọ')})</div>
-    </div>
-
-    <div class="wedding-rings-decor">
-      <img src="images/gedgvdf-20250323085104-ib_ky.png" alt="rings" class="wedding-rings-img"/>
-    </div>
-
-    <div class="wedding-venue-title">{venue_trai}</div>
-    <div class="wedding-venue-addr">Địa chỉ: {addr_trai}</div>
-    
-    <div class="wedding-btn-wrapper">
-      <a href="{maps_thanh_hon}" target="_blank" class="wedding-map-btn">
-        <img src="images/gedgvdf-20250323084322-cpc_l.png" alt="pin" class="wedding-map-pin"/>
-        <span>CHỈ ĐƯỜNG</span>
-      </a>
-    </div>
-  </div>
 </div>"""
 
         p1 = html.find('<div class="ladi-element" id="HEADLINE52">')
@@ -1141,23 +1096,12 @@ def render_page(
             html = html[:p1] + dual_events_html + html[p2:]
 
         dual_events_css = """
-/* Trang Nhà Gái: Mở rộng SECTION3 và hiển thị cả 2 lễ */
+/* Trang Nhà Gái: Chiều cao SECTION3 chuẩn và hiển thị khối Lễ Vu Quy */
 #SECTION3 {
-    height: 2270px !important;
+    height: 1740.2px !important;
 }
 #IMAGE7, #IMAGE8 {
     display: none !important;
-}
-#HEADLINE133 {
-    border: 1px dashed rgb(63, 92, 132) !important;
-    border-radius: 50% !important;
-    width: 32px !important;
-    height: 32px !important;
-    line-height: 32px !important;
-    text-align: center !important;
-    box-sizing: border-box !important;
-    margin-left: -5px !important;
-    margin-top: -3px !important;
 }
 .wedding-dual-container {
     position: absolute;
@@ -1291,24 +1235,6 @@ def render_page(
     height: 20px;
     object-fit: contain;
 }
-.wedding-dual-divider {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 15px;
-    width: 290px;
-    margin: 20px auto 25px;
-    opacity: 0.45;
-}
-.wedding-div-line {
-    flex: 1;
-    height: 1px;
-    background: rgb(63, 92, 132);
-}
-.wedding-div-icon {
-    font-size: 18px;
-    color: rgb(63, 92, 132);
-}
 """
     else:
         # Address replacement (handles &nbsp; and line breaks in template)
@@ -1339,9 +1265,9 @@ def render_page(
         import datetime
         c_year = int(new_year) if new_year else 2026
         c_month = int(new_month) if new_month else 10
-        c_day = main_wedding_day
-        c_hour = int(time_short.split(":")[0]) if ":" in time_short else (11 if side == "trai" else 16)
-        c_min = int(time_short.split(":")[1]) if ":" in time_short else (0 if side == "trai" else 30)
+        c_day = int(event.get("ngay", 17)) if side == "gai" else main_wedding_day
+        c_hour = int(time_short.split(":")[0]) if ":" in time_short else (16 if side == "gai" else 11)
+        c_min = int(time_short.split(":")[1]) if ":" in time_short else (30 if side == "gai" else 0)
         c_dt = datetime.datetime(c_year, c_month, c_day, c_hour, c_min, 0, tzinfo=datetime.timezone(datetime.timedelta(hours=7)))
         c_ts = int(c_dt.timestamp() * 1000)
         html = re.sub(r'("COUNTDOWN1":\{[^}]*"bT":)\d+', rf'\g<1>{c_ts}', html)
@@ -1400,7 +1326,7 @@ def render_page(
     # 5. Dynamic Calendar Grid & Heart calculation for exact month/year/wedding day
     cal_year = int(new_year) if new_year else 2026
     cal_month = int(new_month) if new_month else 10
-    cal_day = main_wedding_day
+    cal_day = int(event.get("ngay", 17)) if side == "gai" else main_wedding_day
     calendar_rules = generate_calendar_css(cal_year, cal_month, cal_day)
 
     timeline_pos = config.get("can_chinh_anh_timeline", "center 95%")
@@ -1429,11 +1355,11 @@ def render_page(
 }
 """
 
-    # 6b. Dresscode Color Palette: Trắng - Xanh lá nhạt - Xanh dương - Kem
-    dresscode_colors = config.get("mau_dresscode") or ["#FFFFFF", "#A8C5A8", "rgb(63, 92, 132)", "rgb(242, 233, 216)"]
+    # 6b. Dresscode Color Palette: Trắng - Xanh lá nhạt - Pastel Blue - Kem
+    dresscode_colors = config.get("mau_dresscode") or ["#FFFFFF", "#A8C5A8", "#AEC6CF", "rgb(242, 233, 216)"]
     c1 = dresscode_colors[0] if len(dresscode_colors) > 0 else "#FFFFFF"
     c2 = dresscode_colors[1] if len(dresscode_colors) > 1 else "#A8C5A8"
-    c3 = dresscode_colors[2] if len(dresscode_colors) > 2 else "rgb(63, 92, 132)"
+    c3 = dresscode_colors[2] if len(dresscode_colors) > 2 else "#AEC6CF"
     c4 = dresscode_colors[3] if len(dresscode_colors) > 3 else "rgb(242, 233, 216)"
 
     dresscode_css = f"""
