@@ -1538,7 +1538,12 @@ def render_page(
 """
     html = html.replace("</head>", custom_ui_fixes + "\n</head>", 1)
 
-    # 7. Fix relative paths if this page is placed in a subfolder (e.g. nhatrai/ or nhagai/)
+    # 7. Background music replacement
+    bg_music = config.get("nhac_nen", "media/bg_music.mp3").strip()
+    html = html.replace("https://camcui.vn/bai99.mp3", bg_music)
+    html = html.replace("media/bg_music.mp3", bg_music)
+
+    # 8. Fix relative paths if this page is placed in a subfolder (e.g. nhatrai/ or nhagai/)
     if is_subfolder:
         # Prepend ../ to local asset paths
         html = html.replace('href="css/', 'href="../css/')
@@ -1548,6 +1553,8 @@ def render_page(
         html = html.replace('url(\'images/', 'url(\'../images/')
         html = html.replace('url(\'fonts/', 'url(\'../fonts/')
         html = html.replace('content="images/', 'content="../images/')
+        html = html.replace('"media/', '"../media/')
+        html = html.replace('\'media/', '\'../media/')
 
     # 8. Full Album External Link & Lightbox Modal
     full_album_link = config.get("link_full_album", "https://photos.app.goo.gl/Nm2Mkga4rxEYE3bp9").strip()
