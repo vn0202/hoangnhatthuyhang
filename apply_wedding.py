@@ -58,8 +58,8 @@ NHA_GAI_HTML = os.path.join(SITE_DIR, "nhagai.html")
 # Specific wedding photo slots in the template:
 HERO_SLOT = "images/itsk2851a-20251006144830-optts.jpg"       # BOX1: Ảnh bìa lớn mở đầu thiệp
 SAVEDATE_SLOT = "images/itsk2754a-20251006145138-jfgqu.jpg"   # BOX3: Ảnh Save the date / Quyết định bên nhau trọn đời
-GROOM_SLOT = "images/itsk3191a-20251008053414-kpxv0.jpg"      # BOX5: Ảnh chân dung Chú rể
-BRIDE_SLOT = "images/itsk3101a-20251006145418-uz8ay.jpg"      # BOX6: Ảnh chân dung Cô dâu
+GROOM_SLOT = "images/itsk3101a-20251006145418-uz8ay.jpg"      # BOX6: Ảnh chân dung Chú rể (Bên trái, phía trên Nhà Trai)
+BRIDE_SLOT = "images/itsk3191a-20251008053414-kpxv0.jpg"      # BOX5: Ảnh chân dung Cô dâu (Bên phải, phía trên Nhà Gái)
 TIMELINE_SLOT = "images/itsk3091a-20251008051748-n35d5.jpg"   # BOX9: Ảnh mục Timeline / Lịch trình
 QR_SLOT = "images/z7088734823475_7734a20ec0ef7860291ea3a3f8324d90-20251006153650-jjc6y.jpg"  # IMAGE50: Mã QR hiển thị trong popup
 
@@ -117,12 +117,14 @@ def generate_og_banners(config: dict, custom_dir: str, images_dir: str):
     if custom_root:
         shutil.copyfile(custom_root, os.path.join(images_dir, "og_share.jpg"))
 
-    # 2. Nếu thiếu, tự động tạo từ ảnh hero/album với layout thiệp vàng sang trọng
+    # 2. Nếu thiếu, tự động tạo từ ảnh org/hero/album với layout thiệp vàng sang trọng
     hero_photo = (
-        find_file_with_extensions(["hero", "banner"], custom_dir)
+        find_file_with_extensions(["org", "og_photo"], custom_dir)
+        or (os.path.join(BASE_DIR, "org.jpeg") if os.path.exists(os.path.join(BASE_DIR, "org.jpeg")) else None)
+        or find_file_with_extensions(["hero", "banner"], custom_dir)
         or os.path.join(images_dir, "custom_hero.jpeg")
     )
-    if not os.path.exists(hero_photo):
+    if not hero_photo or not os.path.exists(hero_photo):
         return
 
     font_candidates = [
@@ -191,7 +193,7 @@ def generate_og_banners(config: dict, custom_dir: str, images_dir: str):
 
     # Banner Nhà Trai
     out_trai = os.path.join(images_dir, "og_nhatrai.jpg")
-    if not custom_trai or not os.path.exists(out_trai):
+    if not custom_trai:
         create_single_banner(
             hero_photo,
             trai_ev.get("tieu_de_le", "LỄ THÀNH HÔN"),
@@ -204,12 +206,12 @@ def generate_og_banners(config: dict, custom_dir: str, images_dir: str):
 
     # Banner Nhà Gái
     out_gai = os.path.join(images_dir, "og_nhagai.jpg")
-    if not custom_gai or not os.path.exists(out_gai):
+    if not custom_gai:
         create_single_banner(
             hero_photo,
             gai_ev.get("tieu_de_le", "LỄ VU QUY"),
             f"{cr_short} & {cd_short}",
-            f"{gai_ev.get('gio_ngan', '16:30')} • {gai_ev.get('ngay_duong_lich', '18.10.2026')} ({gai_ev.get('thu', 'Chủ Nhật').title()})",
+            f"{gai_ev.get('gio_ngan', '16:30')} • {gai_ev.get('ngay_duong_lich', '17.10.2026')} ({gai_ev.get('thu', 'Thứ Bảy').title()})",
             gai_ev.get("ten_dia_diem", "Tư gia Nhà Gái"),
             gai_ev.get("dia_chi", "Thọ Vực, Xã Xuân Giang, Tỉnh Ninh Bình"),
             out_gai,
@@ -217,7 +219,7 @@ def generate_og_banners(config: dict, custom_dir: str, images_dir: str):
 
     # Banner Root
     out_root = os.path.join(images_dir, "og_share.jpg")
-    if not custom_root or not os.path.exists(out_root):
+    if not custom_root:
         create_single_banner(
             hero_photo,
             trai_ev.get("tieu_de_le", "LỄ THÀNH HÔN"),
@@ -1427,6 +1429,30 @@ def render_page(
 }
 """
 
+    # 6b. Dresscode Color Palette: Trắng - Xanh lá nhạt - Xanh dương - Kem
+    dresscode_colors = config.get("mau_dresscode") or ["#FFFFFF", "#A8C5A8", "rgb(63, 92, 132)", "rgb(242, 233, 216)"]
+    c1 = dresscode_colors[0] if len(dresscode_colors) > 0 else "#FFFFFF"
+    c2 = dresscode_colors[1] if len(dresscode_colors) > 1 else "#A8C5A8"
+    c3 = dresscode_colors[2] if len(dresscode_colors) > 2 else "rgb(63, 92, 132)"
+    c4 = dresscode_colors[3] if len(dresscode_colors) > 3 else "rgb(242, 233, 216)"
+
+    dresscode_css = f"""
+/* Dresscode Color Palette: Trắng - Xanh lá nhạt - Xanh dương - Kem/Be */
+#BOX37 > .ladi-box {{
+    background-color: {c1} !important;
+    box-shadow: rgba(0, 0, 0, 0.15) 0px 10px 15px -8px, rgba(0, 0, 0, 0.08) 0px 0px 0px 1px !important;
+}}
+#BOX39 > .ladi-box {{
+    background-color: {c2} !important;
+}}
+#BOX40 > .ladi-box {{
+    background-color: {c3} !important;
+}}
+#BOX41 > .ladi-box {{
+    background-color: {c4} !important;
+}}
+"""
+
     # 7. Inject UI Fixes:
     #   - Hero banner: prevent bride's name from wrapping onto line 2 and clipping,
     #     and adjust ampersand size/position so it sits cleanly between groom and bride
@@ -1531,6 +1557,7 @@ def render_page(
 
 
 {gift_button_css}
+{dresscode_css}
 {dual_events_css}
 /* Calendar grid and wedding date heart */
 {calendar_rules}

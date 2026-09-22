@@ -28,6 +28,7 @@ Toàn bộ thông tin tùy biến nằm gọn trong thư mục `custom_wedding/`
 - Địa điểm và địa chỉ chi tiết (hệ thống tự động đồng bộ link Google Maps chỉ đường).
 - Thông tin số tài khoản / ngân hàng mừng cưới.
 - Nhạc nền thiệp cưới (`nhac_nen`, mặc định `media/bg_music.mp3`).
+- Màu dresscode trang phục (`mau_dresscode` gồm 4 mã màu: Trắng, Xanh lá nhạt, Xanh dương, Be/Kem).
 
 ### B. Thay đổi hình ảnh (`custom_wedding/`):
 - `hero.jpg`: Ảnh bìa lớn mở đầu thiệp cưới.
