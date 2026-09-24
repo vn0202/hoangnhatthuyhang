@@ -1002,8 +1002,8 @@ def render_page(
         ("Ông. Nguyễn Hữu Thu", co_dau.get("bo", "Ông. Nguyễn Hữu Thu")),
         ("Bà. Trịnh Thị Thủy", co_dau.get("me", "Bà. Trịnh Thị Thủy")),
 
-        # Event Dates & Times (Save the date always uses main wedding date)
-        ("30.10.2025", main_wedding_date),
+        # Event Dates & Times (Save the date: ngày dương lịch theo từng tiệc)
+        ("30.10.2025", event.get("ngay_save_date") or (date_str if side == "gai" else main_wedding_date)),
         ("10 tháng 09 năm Ất Tỵ", lunar_str),
         ("THỨ NĂM", day_name),
         ("17 giờ 30 phút", time_long),
