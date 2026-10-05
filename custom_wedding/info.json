@@ -41,6 +41,8 @@
   },
   "tiec_nha_trai": {
     "tieu_de_le": "LỄ THÀNH HÔN",
+    "hien_xac_nhan_tham_gia": false,
+    "hien_countdown": false,
     "ngay_duong_lich": "18.10.2026",
     "thu": "CHỦ NHẬT",
     "ngay": "18",
@@ -56,6 +58,8 @@
   },
   "tiec_nha_gai": {
     "tieu_de_le": "LỄ VU QUY",
+    "hien_xac_nhan_tham_gia": true,
+    "hien_countdown": true,
     "ngay_duong_lich": "17.10.2026",
     "thu": "THỨ BẢY",
     "ngay": "17",

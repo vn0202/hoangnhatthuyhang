@@ -13,6 +13,11 @@ HƯỚNG DẪN THAY ĐỔI ẢNH & THÔNG TIN THIỆP CƯỚI
    - Nút "MỪNG CƯỚI":
      * Mặc định nếu để trống ("") số tài khoản / ngân hàng, nút "MỪNG CƯỚI" sẽ TỰ ĐỘNG ẨN đi.
      * Có thể chủ động tắt nút bằng cách đặt: "hien_nut_mung_cuoi": false ở đầu file info.json.
+   - Khối "XÁC NHẬN THAM GIA (LỜI CHÚC)" & Khối "COUNTDOWN":
+     * Có thể chủ động bật/tắt riêng cho Nhà Trai hoặc Nhà Gái bằng cách đặt trong "tiec_nha_trai" / "tiec_nha_gai":
+       "hien_xac_nhan_tham_gia": false / true
+       "hien_countdown": false / true
+     * Khi ẩn cả xác nhận tham gia, countdown và mừng cưới, toàn bộ phần khoảng trống sẽ tự động được thu gọn liền mạch.
 
 2. THAY ĐỔI HÌNH ẢNH:
    - "hero.jpg" (tùy chọn): Đặt ảnh bìa lớn mở đầu thiệp cưới vào thư mục này.

@@ -888,6 +888,14 @@ def render_page(
     has_bank_info = bool(so_tai_khoan or ten_ngan_hang)
     hide_gift_button = (not show_gift_cfg) or (not has_bank_info)
 
+    # Check RSVP form (lời xác nhận tham gia / lời chúc) and Countdown visibility
+    # Default for Nhà Trai: False (ẩn theo yêu cầu)
+    # Default for Nhà Gái: True
+    default_rsvp = False if side == "trai" else True
+    default_countdown = False if side == "trai" else True
+    show_rsvp = event.get("hien_xac_nhan_tham_gia", config.get("hien_xac_nhan_tham_gia", default_rsvp))
+    show_countdown = event.get("hien_countdown", config.get("hien_countdown", default_countdown))
+
     # 1. Update Title & Open Graph Meta Tags (Bắt buộc dùng Absolute URL để Zalo & Messenger hiển thị ảnh)
     venue_name = event.get("ten_dia_diem", "Trống Đồng Palace")
     venue_addr = event.get("dia_chi", "")
@@ -1336,13 +1344,120 @@ def render_page(
     hero_pos = config.get("can_chinh_anh_hero", "48% 60%")
     hero_scale = config.get("scale_anh_hero", "106%")
 
-    # 6. Mừng Cưới Button visibility
-    gift_button_css = ""
+    # 6. Section 7 Visibility & Dynamic Spacing (RSVP Form, Countdown, Mừng Cưới)
+    section7_css_rules = []
+
+    if not show_rsvp:
+        section7_css_rules.append("""
+/* Hide RSVP / Attendance confirmation & wish form */
+#GROUP45 {
+    display: none !important;
+}""")
+
+    if not show_countdown:
+        section7_css_rules.append("""
+/* Hide Countdown block */
+#HEADLINE83,
+#COUNTDOWN1,
+#HEADLINE84,
+#HEADLINE85,
+#HEADLINE86 {
+    display: none !important;
+}""")
+
     if hide_gift_button:
-        gift_button_css = """
-/* Hide Mừng Cưới button and adjust countdown spacing */
+        section7_css_rules.append("""
+/* Hide Mừng Cưới button */
 #GROUP24 {
     display: none !important;
+}""")
+
+    # Dynamic layout spacing & height based on active elements
+    has_rsvp = bool(show_rsvp)
+    has_countdown = bool(show_countdown)
+    has_gift = not bool(hide_gift_button)
+
+    if not has_rsvp and not has_countdown and not has_gift:
+        # All Section 7 elements disabled -> completely hide section
+        section7_css_rules.append("""
+/* Hide entire Section 7 seamlessly */
+#SECTION7 {
+    display: none !important;
+    height: 0px !important;
+    min-height: 0px !important;
+}""")
+    elif not has_rsvp and not has_countdown and has_gift:
+        # Only Mừng Cưới button is active
+        section7_css_rules.append("""
+#SECTION7 {
+    height: 180px !important;
+}
+#GROUP24 {
+    top: 70px !important;
+    left: 19px !important;
+}
+#GROUP37 {
+    height: 180px !important;
+    overflow: hidden !important;
+}
+#IMAGE33 {
+    top: 50px !important;
+}""")
+    elif not has_rsvp and has_countdown and not has_gift:
+        # Only Countdown is active
+        section7_css_rules.append("""
+#SECTION7 {
+    height: 250px !important;
+}
+#HEADLINE83 {
+    top: 50px !important;
+}
+#COUNTDOWN1 {
+    top: 140px !important;
+}
+#HEADLINE84, #HEADLINE85, #HEADLINE86 {
+    top: 132px !important;
+}""")
+    elif not has_rsvp and has_countdown and has_gift:
+        # Countdown and Gift button are active
+        section7_css_rules.append("""
+#SECTION7 {
+    height: 340px !important;
+}
+#HEADLINE83 {
+    top: 50px !important;
+}
+#COUNTDOWN1 {
+    top: 140px !important;
+}
+#HEADLINE84, #HEADLINE85, #HEADLINE86 {
+    top: 132px !important;
+}
+#GROUP24 {
+    top: 240px !important;
+    left: 19px !important;
+}""")
+    elif has_rsvp and not has_countdown and not has_gift:
+        # RSVP only
+        section7_css_rules.append("""
+#SECTION7 {
+    height: 480px !important;
+}""")
+    elif has_rsvp and not has_countdown and has_gift:
+        # RSVP and Gift button
+        section7_css_rules.append("""
+#SECTION7 {
+    height: 560px !important;
+}
+#GROUP24 {
+    top: 480px !important;
+    left: 19px !important;
+}""")
+    elif has_rsvp and has_countdown and not has_gift:
+        # RSVP and Countdown, gift button hidden (default when no bank info)
+        section7_css_rules.append("""
+#SECTION7 {
+    height: 680px !important;
 }
 #HEADLINE83 {
     top: 490px !important;
@@ -1352,8 +1467,12 @@ def render_page(
 }
 #HEADLINE84, #HEADLINE85, #HEADLINE86 {
     top: 577px !important;
-}
-"""
+}""")
+    else:
+        # Everything active
+        pass
+
+    section7_css = "\n".join(section7_css_rules)
 
     # 6b. Dresscode Color Palette: Trắng - Xanh lá nhạt - Pastel Blue - Kem
     dresscode_colors = config.get("mau_dresscode") or ["#FFFFFF", "#A8C5A8", "#AEC6CF", "rgb(242, 233, 216)"]
@@ -1482,7 +1601,7 @@ def render_page(
 }}
 
 
-{gift_button_css}
+{section7_css}
 {dresscode_css}
 {dual_events_css}
 /* Calendar grid and wedding date heart */
